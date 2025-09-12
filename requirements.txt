@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+databases[mysql] # Para suporte async ao MySQL
+pymysql # O "driver" que conecta ao MySQL
+passlib[bcrypt] # Para criptografar as senhas
+python-jose[cryptography] # Para criar os tokens JWT
