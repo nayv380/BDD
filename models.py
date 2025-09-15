@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, Date
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker, mapped_column
 
 # --- Seção 1: Configuração da Conexão com o Banco de Dados ---
@@ -33,6 +33,12 @@ class Usuario(Base):
     foto_perfil_url = mapped_column(String(255))
     google_id = mapped_column(String(255))
     apple_id = mapped_column(String(255))
+    
+    # NOVAS COLUNAS ADICIONADAS
+    empresa = mapped_column(String(255))
+    localizacao = mapped_column(String(255))
+    telefone = mapped_column(String(20))
+    data_nascimento = mapped_column(Date)
 
     # Relacionamentos com outras tabelas
     habilidades = relationship("UsuarioHabilidade", back_populates="usuario")

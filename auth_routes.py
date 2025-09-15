@@ -1,49 +1,74 @@
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from models import Base, engine, Usuario, get_db_session
-from pydantic import BaseModel
-import hashlib
+from pydantic import BaseModel, EmailStr
+from models import Usuario, get_db_session
 
-# Criação do roteador
-router = APIRouter()
+# Criamos um roteador para organizar as rotas de autenticação.
+router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
-# Rota de login por CPF
-class LoginRequest(BaseModel):
+# --- Seção 1: Schemas do Pydantic ---
+# Usamos Pydantic para validar os dados que chegam na API.
+# Ele garante que as informações de registro do usuário estão corretas.
+
+class UsuarioCreate(BaseModel):
+    """
+    Schema para criar um novo usuário.
+    Define os campos obrigatórios e seus tipos.
+    """
     cpf: str
+    email: EmailStr
     senha: str
-
-@router.post("/login", status_code=status.HTTP_200_OK)
-def login(request: LoginRequest, db: Session = Depends(get_db_session)):
-    usuario = db.query(Usuario).filter(Usuario.cpf == request.cpf).first()
-    if not usuario:
-        raise HTTPException(status_code=401, detail="CPF ou senha inválidos")
-    # Aqui você pode usar hash de senha real, este é só exemplo
-    senha_hash = hashlib.sha256(request.senha.encode()).hexdigest()
-    if usuario.senha != senha_hash:
-        raise HTTPException(status_code=401, detail="CPF ou senha inválidos")
-    return {"message": "Login realizado com sucesso", "usuario_id": usuario.id_usuario}
-
-
-# --- Seção 1: Eventos de Inicialização ---
-# (Esses eventos devem ser definidos no main.py, se necessário)
-
+    nome: str
+    cargo: str
+    descricao_pessoal: str
+    tipo_usuario: str
+    foto_perfil_url: str = None
+    empresa: str = None
+    localizacao: str = None
+    telefone: str = None
+    data_nascimento: str = None # Usamos string para facilitar e convertemos depois se necessário
 
 # --- Seção 2: Rotas (Endpoints) da API ---
 
-@router.get("/usuarios/{user_id}")
-def get_usuario(user_id: int, db: Session = Depends(get_db_session)):
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+def register_usuario(usuario_data: UsuarioCreate, db: Session = Depends(get_db_session)):
     """
-    Rota para buscar um usuário por ID.
-    O 'Depends(get_db_session)' injeta a sessão do banco de dados na sua função.
-    Isso é o que permite que você interaja com o banco.
+    Rota para registrar um novo usuário no banco de dados.
+
+    - Recebe os dados de registro.
+    - Verifica se o CPF ou e-mail já existem para evitar duplicidade.
+    - Se tudo estiver OK, cria o novo usuário e o salva no banco.
     """
-    # Consulta o banco de dados para encontrar o usuário com o ID fornecido.
-    usuario = db.query(Usuario).filter(Usuario.id_usuario == user_id).first()
-    
-    # Se o usuário não for encontrado, retornamos um erro 404.
-    if usuario is None:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    
-    # Se encontrado, retornamos os dados do usuário.
-    return usuario
+    # 1. Verificamos se o usuário já existe
+    usuario_existente = db.query(Usuario).filter(
+        (Usuario.cpf == usuario_data.cpf) | (Usuario.email == usuario_data.email)
+    ).first()
+
+    if usuario_existente:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="CPF ou e-mail já cadastrados."
+        )
+
+    # 2. Criamos uma nova instância do modelo de usuário
+    novo_usuario = Usuario(
+        cpf=usuario_data.cpf,
+        email=usuario_data.email,
+        senha=usuario_data.senha, # Em uma aplicação real, a senha deveria ser hasheada aqui!
+        nome=usuario_data.nome,
+        cargo=usuario_data.cargo,
+        descricao_pessoal=usuario_data.descricao_pessoal,
+        tipo_usuario=usuario_data.tipo_usuario,
+        foto_perfil_url=usuario_data.foto_perfil_url,
+        empresa=usuario_data.empresa,
+        localizacao=usuario_data.localizacao,
+        telefone=usuario_data.telefone,
+        data_nascimento=usuario_data.data_nascimento
+    )
+
+    # 3. Adicionamos o novo usuário à sessão do banco de dados e salvamos
+    db.add(novo_usuario)
+    db.commit()
+    db.refresh(novo_usuario) # Atualiza a instância com o ID gerado pelo banco
+
+    return {"message": "Usuário registrado com sucesso!", "id_usuario": novo_usuario.id_usuario}
